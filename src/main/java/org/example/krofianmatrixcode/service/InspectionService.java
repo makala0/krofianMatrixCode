@@ -21,6 +21,8 @@ public class InspectionService {
 
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
+    private String currentMatrixCode = null;
+
     public void addInspection(
             String fileName,
             String contentType,
@@ -31,6 +33,12 @@ public class InspectionService {
         String station = parsed.station();
         String inspectionName = parsed.inspectionName();
 
+        if (currentMatrixCode == null || !currentMatrixCode.equals(matrixCode)) {
+            groups.clear();
+            groupIndex.clear();
+            currentMatrixCode = matrixCode;
+        }
+
         String key = station + "|" + matrixCode;
 
         InspectionGroup group;
@@ -38,7 +46,6 @@ public class InspectionService {
         UUID groupId = groupIndex.get(key);
 
         if (groupId == null) {
-
             group = new InspectionGroup();
 
             group.setId(UUID.randomUUID());
@@ -51,9 +58,13 @@ public class InspectionService {
             groupIndex.put(key, group.getId());
 
         } else {
-
             group = groups.get(groupId);
+            boolean alreadyExists = group.getImages().stream()
+                    .anyMatch(img -> img.getInspectionName().equals(inspectionName));
 
+            if (alreadyExists) {
+                return;
+            }
         }
 
         InspectionImage image = new InspectionImage();
@@ -125,17 +136,28 @@ public class InspectionService {
     }
 
     private void notifyClients() {
+
         System.out.println("Notify clients: " + emitters.size());
+
         List<SseEmitter> dead = new ArrayList<>();
+
         for (SseEmitter emitter : emitters) {
-            System.out.println("Sending SSE...");
+
             try {
-                emitter.send(SseEmitter.event().name("inspection"));
+
+                System.out.println("Sending SSE...");
+
+                emitter.send(
+                        SseEmitter.event()
+                                .name("inspection")
+                                .data("refresh")
+                );
+
             } catch (Exception ex) {
+                ex.printStackTrace();
                 dead.add(emitter);
             }
         }
-
         emitters.removeAll(dead);
     }
 

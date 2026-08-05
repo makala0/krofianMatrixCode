@@ -207,6 +207,22 @@ eventSource.onerror = () => {
 
 };
 
+eventSource.onopen = () => {
+    console.log("SSE connected");
+};
+
+eventSource.onerror = (e) => {
+    console.log("SSE error", e);
+};
+
+eventSource.onmessage = (e) => {
+    console.log("Default message:", e.data);
+};
+
+eventSource.addEventListener("inspection", (e) => {
+    console.log("Inspection event:", e.data);
+    refresh();
+});
 /* ======================================================= */
 
 refresh();
