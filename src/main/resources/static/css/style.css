@@ -1,0 +1,176 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #f3f4f6;
+    color: #333;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ---------- Header ---------- */
+
+header {
+    height: 60px;
+    background: #1f2937;
+    color: white;
+    display: flex;
+    align-items: center;
+    padding: 0 25px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.2);
+}
+
+header h1 {
+    font-size: 22px;
+    font-weight: 600;
+}
+
+/* ---------- Layout ---------- */
+
+.container {
+    display: flex;
+    height: calc(100vh - 60px);
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+    width: 340px;
+    background: white;
+    border-right: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar h2 {
+    padding: 18px;
+    border-bottom: 1px solid #ddd;
+    background: #fafafa;
+}
+
+#inspectionList {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* ---------- Karta ---------- */
+
+.card {
+    padding: 18px;
+    margin: 12px;
+    border-radius: 10px;
+    background: white;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    transition: .2s;
+}
+
+.card:hover {
+    background: #f5f8ff;
+    border-color: #3b82f6;
+}
+
+.card.selected {
+    background: #dbeafe;
+    border-color: #2563eb;
+}
+
+.station {
+    font-size: 13px;
+    color: gray;
+}
+
+.matrix {
+    font-size: 20px;
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+.count {
+    margin-top: 10px;
+    color: #2563eb;
+    font-weight: 600;
+}
+
+.time {
+    margin-top: 8px;
+    font-size: 12px;
+    color: gray;
+}
+
+/* ---------- Pravá část ---------- */
+
+.content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---------- Viewer ---------- */
+
+#viewer {
+    flex: 1;
+    background: #111;
+}
+
+/* ---------- Toolbar ---------- */
+
+.toolbar {
+    height: 70px;
+    background: white;
+    border-top: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+/* ---------- Název kontroly ---------- */
+
+#imageName {
+    min-width: 280px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* ---------- Buttons ---------- */
+
+button {
+    border: none;
+    background: #2563eb;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    transition: .2s;
+}
+
+button:hover:not(:disabled) {
+    background: #1d4ed8;
+}
+
+button:disabled {
+    background: #bdbdbd;
+    cursor: default;
+}
+
+/* ---------- Scrollbar ---------- */
+
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c6c6c6;
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
