@@ -136,8 +136,19 @@ public class InspectionService {
     }
 
     private void notifyClients() {
+        sendEvent("inspection", "refresh");
+    }
 
-        System.out.println("Notify clients: " + emitters.size());
+    public void nextImage() {
+        sendEvent("next-image", "next");
+    }
+
+    private void sendEvent(String eventName, String data) {
+
+        System.out.println(
+                "Sending SSE event: " + eventName
+                        + ", clients: " + emitters.size()
+        );
 
         List<SseEmitter> dead = new ArrayList<>();
 
@@ -145,19 +156,20 @@ public class InspectionService {
 
             try {
 
-                System.out.println("Sending SSE...");
-
                 emitter.send(
                         SseEmitter.event()
-                                .name("inspection")
-                                .data("refresh")
+                                .name(eventName)
+                                .data(data)
                 );
 
             } catch (Exception ex) {
+
                 ex.printStackTrace();
+
                 dead.add(emitter);
             }
         }
+
         emitters.removeAll(dead);
     }
 

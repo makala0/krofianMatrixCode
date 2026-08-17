@@ -174,3 +174,56 @@ button:disabled {
 ::-webkit-scrollbar-thumb:hover {
     background: #999;
 }
+
+#viewer {
+    position: relative;
+}
+
+.viewer-status {
+    position: absolute;
+
+    top: 50%;
+    left: 50%;
+
+    transform: translate(-50%, -50%);
+
+    z-index: 1000;
+
+    min-width: 420px;
+
+    padding: 35px 50px;
+
+    text-align: center;
+
+    background: rgba(20, 20, 20, 0.92);
+
+    border-radius: 12px;
+
+    color: white;
+
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+
+    pointer-events: none;
+}
+
+.viewer-status.hidden {
+    display: none;
+}
+
+.status-title {
+    font-size: 30px;
+    font-weight: 700;
+
+    margin-bottom: 15px;
+}
+
+.status-description {
+    font-size: 22px;
+
+    margin-bottom: 15px;
+}
+
+.status-action {
+    font-size: 18px;
+    opacity: 0.8;
+}

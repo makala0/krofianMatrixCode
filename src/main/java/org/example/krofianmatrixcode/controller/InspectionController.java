@@ -65,6 +65,14 @@ public class InspectionController {
         inspectionService.deleteGroup(groupId);
     }
 
+    @PostMapping("/control/next")
+    public ResponseEntity<Void> nextImage() {
+
+        inspectionService.nextImage();
+
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/subscribe")
     public SseEmitter subscribe() {
         return inspectionService.subscribe();
