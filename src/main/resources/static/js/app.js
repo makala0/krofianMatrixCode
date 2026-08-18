@@ -27,6 +27,11 @@ const AppState = {
     CONFIRMATION: "CONFIRMATION"
 };
 
+const Decision = {
+    OK: "OK",
+    NOK: "NOK"
+};
+
 let appState = AppState.WAITING;
 
 let groups = [];
@@ -35,6 +40,8 @@ let selectedGroup = null;
 
 let images = [];
 let currentImageIndex = 0;
+
+let pendingDecision = null;
 
 let finishing = false;
 
@@ -203,6 +210,38 @@ function renderGroups() {
 }
 
 
+function getSelectedGroupIndex() {
+
+    if (selectedGroup == null) {
+        return -1;
+    }
+
+    return groups.findIndex(
+        group => group.id === selectedGroup.id
+    );
+}
+
+
+function getNextGroup() {
+
+    const selectedGroupIndex =
+        getSelectedGroupIndex();
+
+    if (selectedGroupIndex < 0) {
+        return null;
+    }
+
+    return groups[selectedGroupIndex + 1] ?? null;
+}
+
+
+function isLastInspectionImage() {
+
+    return currentImageIndex === images.length - 1
+        && getNextGroup() == null;
+}
+
+
 /* ======================================================= */
 /* LOAD GROUP                                              */
 /* ======================================================= */
@@ -234,6 +273,8 @@ async function loadGroup(
     if (resetIndex) {
 
         currentImageIndex = 0;
+
+        pendingDecision = null;
 
         appState = AppState.VIEWING;
     }
@@ -268,7 +309,7 @@ async function loadGroup(
 
     if (appState === AppState.CONFIRMATION) {
 
-        showConfirmationScreen();
+        showConfirmationScreen(pendingDecision);
 
         return;
     }
@@ -305,7 +346,12 @@ function showImage() {
         + "   "
         + (currentImageIndex + 1)
         + " / "
-        + images.length;
+        + images.length
+        + (
+            isLastInspectionImage()
+                ? " - POSLEDNI SNIMEK"
+                : ""
+        );
 
     viewer.open({
         type: "image",
@@ -313,11 +359,10 @@ function showImage() {
     });
 
     previousButton.disabled =
-        currentImageIndex === 0;
+        false;
 
     nextButton.disabled =
-        currentImageIndex
-        === images.length - 1;
+        false;
 }
 
 
@@ -332,6 +377,8 @@ function showWaitingScreen() {
     images = [];
 
     currentImageIndex = 0;
+
+    pendingDecision = null;
 
     viewer.close();
 
@@ -358,13 +405,16 @@ function showWaitingScreen() {
 /* CONFIRMATION                                            */
 /* ======================================================= */
 
-function showConfirmationScreen() {
+function showConfirmationScreen(decision) {
+
+    pendingDecision =
+        decision;
 
     appState =
         AppState.CONFIRMATION;
 
-    previousButton.disabled = true;
-    nextButton.disabled = true;
+    previousButton.disabled = false;
+    nextButton.disabled = false;
 
     showStatus(`
         <div class="status-title">
@@ -372,12 +422,11 @@ function showConfirmationScreen() {
         </div>
 
         <div class="status-description">
-            Opravdu chcete pokračovat?
+            Chcete díl pustit, nebo vyhodit?
         </div>
 
         <div class="status-action">
-            Pro potvrzení stiskněte
-            znovu fyzické tlačítko
+            OK pusti díl, NOK díl vyhodí
         </div>
     `);
 }
@@ -387,41 +436,46 @@ function showConfirmationScreen() {
 /* PHYSICAL NEXT SIGNAL                                    */
 /* ======================================================= */
 
-function handleNextSignal() {
+async function handleNextSignal() {
+
+    await handleControlSignal(Decision.OK);
+}
+
+
+async function handleControlSignal(decision) {
 
     console.log(
-        "NEXT signal, state:",
-        appState
+        "Control signal, state:",
+        appState,
+        "decision:",
+        decision
     );
 
-    /*
-     * Čekáme na nový NOK.
-     * Tlačítko nic nedělá.
-     */
     if (appState === AppState.WAITING) {
         return;
     }
 
-    /*
-     * Druhé stisknutí na potvrzovací
-     * obrazovce dokončí NOK.
-     */
-    if (
-        appState === AppState.CONFIRMATION
-    ) {
+    if (appState === AppState.CONFIRMATION) {
 
-        finishInspection();
+        await finishInspection(decision);
 
         return;
     }
 
-    /*
-     * Máme další snímek.
-     */
-    if (
-        currentImageIndex
-        < images.length - 1
-    ) {
+    if (isLastInspectionImage()) {
+
+        showConfirmationScreen(null);
+
+        return;
+    }
+
+    await showNextInspectionImage();
+}
+
+
+async function showNextInspectionImage() {
+
+    if (currentImageIndex < images.length - 1) {
 
         currentImageIndex++;
 
@@ -430,11 +484,18 @@ function handleNextSignal() {
         return;
     }
 
-    /*
-     * Jsme na posledním snímku.
-     * První stisk zobrazí potvrzení.
-     */
-    showConfirmationScreen();
+    const nextGroup =
+        getNextGroup();
+
+    if (nextGroup != null) {
+
+        await loadGroup(
+            nextGroup,
+            true
+        );
+
+        renderGroups();
+    }
 }
 
 
@@ -442,7 +503,7 @@ function handleNextSignal() {
 /* FINISH INSPECTION                                       */
 /* ======================================================= */
 
-async function finishInspection() {
+async function finishInspection(decision) {
 
     if (
         finishing
@@ -460,7 +521,10 @@ async function finishInspection() {
 
         const response =
             await fetch(
-                "/inspection/" + groupId,
+                "/inspection/"
+                    + groupId
+                    + "?decision="
+                    + decision.toLowerCase(),
                 {
                     method: "DELETE"
                 }
@@ -481,6 +545,8 @@ async function finishInspection() {
 
         currentImageIndex = 0;
 
+        pendingDecision = null;
+
         showWaitingScreen();
 
         await refresh();
@@ -499,7 +565,7 @@ async function finishInspection() {
         appState =
             AppState.CONFIRMATION;
 
-        showConfirmationScreen();
+        showConfirmationScreen(decision);
 
     } finally {
 
@@ -512,42 +578,27 @@ async function finishInspection() {
 /* MOUSE CONTROLS                                          */
 /* ======================================================= */
 
-previousButton.onclick = () => {
+previousButton.onclick = async () => {
 
     if (
-        appState !== AppState.VIEWING
+        appState === AppState.WAITING
     ) {
         return;
     }
 
-    if (currentImageIndex === 0) {
-        return;
-    }
-
-    currentImageIndex--;
-
-    showImage();
+    await handleControlSignal(Decision.NOK);
 };
 
 
-nextButton.onclick = () => {
+nextButton.onclick = async () => {
 
     if (
-        appState !== AppState.VIEWING
+        appState === AppState.WAITING
     ) {
         return;
     }
 
-    if (
-        currentImageIndex
-        >= images.length - 1
-    ) {
-        return;
-    }
-
-    currentImageIndex++;
-
-    showImage();
+    await handleControlSignal(Decision.OK);
 };
 
 
@@ -583,6 +634,8 @@ deleteButton.onclick = async () => {
     images = [];
 
     currentImageIndex = 0;
+
+    pendingDecision = null;
 
     showWaitingScreen();
 
@@ -637,14 +690,33 @@ eventSource.addEventListener(
  */
 eventSource.addEventListener(
     "next-image",
-    event => {
+    async event => {
 
         console.log(
             "Physical NEXT:",
             event.data
         );
 
-        handleNextSignal();
+        await handleControlSignal(Decision.OK);
+    }
+);
+
+
+eventSource.addEventListener(
+    "control",
+    async event => {
+
+        const decision =
+            event.data === "nok"
+                ? Decision.NOK
+                : Decision.OK;
+
+        console.log(
+            "Physical control:",
+            decision
+        );
+
+        await handleControlSignal(decision);
     }
 );
 

@@ -155,6 +155,22 @@ button:hover:not(:disabled) {
     background: #1d4ed8;
 }
 
+.ok-button {
+    background: #16a34a;
+}
+
+.ok-button:hover:not(:disabled) {
+    background: #15803d;
+}
+
+.nok-button {
+    background: #dc2626;
+}
+
+.nok-button:hover:not(:disabled) {
+    background: #b91c1c;
+}
+
 button:disabled {
     background: #bdbdbd;
     cursor: default;

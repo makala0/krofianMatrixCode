@@ -1,6 +1,7 @@
 package org.example.krofianmatrixcode.service;
 
 import org.example.krofianmatrixcode.dto.InspectionGroupDto;
+import org.example.krofianmatrixcode.dto.InspectionDecisionDto;
 import org.example.krofianmatrixcode.model.InspectionGroup;
 import org.example.krofianmatrixcode.model.InspectionImage;
 import org.example.krofianmatrixcode.model.ParsedFileName;
@@ -9,6 +10,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -20,6 +22,9 @@ public class InspectionService {
     private final Map<String, UUID> groupIndex = new ConcurrentHashMap<>();
 
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+
+    private final AtomicReference<InspectionDecisionDto> pendingDecision =
+            new AtomicReference<>();
 
     private String currentMatrixCode = null;
 
@@ -99,17 +104,63 @@ public class InspectionService {
         return groups.get(id);
     }
 
-    public void deleteGroup(UUID id) {
-        InspectionGroup group = groups.remove(id);
+    public void deleteGroup(UUID id, String decision) {
+        InspectionGroup group = groups.get(id);
 
         if (group == null)
             return;
 
-        String key = group.getStation() + "|" + group.getMatrixCode();
+        String matrixCode = group.getMatrixCode();
 
-        groupIndex.remove(key);
+        List<InspectionGroup> groupsToDelete = groups.values()
+                .stream()
+                .filter(item -> Objects.equals(item.getMatrixCode(), matrixCode))
+                .toList();
+
+        for (InspectionGroup item : groupsToDelete) {
+            groups.remove(item.getId());
+
+            String key = item.getStation() + "|" + item.getMatrixCode();
+
+            groupIndex.remove(key);
+        }
+
+        if (Objects.equals(currentMatrixCode, matrixCode)) {
+            currentMatrixCode = null;
+        }
+
+        if (decision != null) {
+            boolean okDecision =
+                    Objects.equals(decision, "ok");
+
+            pendingDecision.set(
+                    new InspectionDecisionDto(
+                            true,
+                            matrixCode,
+                            okDecision,
+                            LocalDateTime.now()
+                    )
+            );
+
+            System.out.println(
+                    "Inspection finished: "
+                            + matrixCode
+                            + ", decision: "
+                            + decision
+            );
+        }
 
         notifyClients();
+    }
+
+    public InspectionDecisionDto consumeDecision() {
+        InspectionDecisionDto decision = pendingDecision.getAndSet(null);
+
+        if (decision == null) {
+            return InspectionDecisionDto.empty();
+        }
+
+        return decision;
     }
 
     public InspectionImage findImage(UUID imageId) {
@@ -140,7 +191,11 @@ public class InspectionService {
     }
 
     public void nextImage() {
-        sendEvent("next-image", "next");
+        control("ok");
+    }
+
+    public void control(String decision) {
+        sendEvent("control", decision);
     }
 
     private void sendEvent(String eventName, String data) {

@@ -1,5 +1,6 @@
 package org.example.krofianmatrixcode.controller;
 
+import org.example.krofianmatrixcode.dto.InspectionDecisionDto;
 import org.example.krofianmatrixcode.dto.InspectionImageDto;
 import org.example.krofianmatrixcode.model.InspectionGroup;
 import org.example.krofianmatrixcode.model.InspectionImage;
@@ -61,14 +62,40 @@ public class InspectionController {
 
     @DeleteMapping("/inspection/{groupId}")
     public void delete(
-            @PathVariable UUID groupId) {
-        inspectionService.deleteGroup(groupId);
+            @PathVariable UUID groupId,
+            @RequestParam(required = false) String decision) {
+        inspectionService.deleteGroup(
+                groupId,
+                decision == null
+                        ? null
+                        : decision.toLowerCase()
+        );
+    }
+
+    @GetMapping("/inspection/decision")
+    public InspectionDecisionDto decision() {
+        return inspectionService.consumeDecision();
     }
 
     @PostMapping("/control/next")
     public ResponseEntity<Void> nextImage() {
 
         inspectionService.nextImage();
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/control/{decision}")
+    public ResponseEntity<Void> control(
+            @PathVariable String decision) {
+
+        String normalizedDecision = decision.toLowerCase();
+
+        if (!normalizedDecision.equals("ok") && !normalizedDecision.equals("nok")) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        inspectionService.control(normalizedDecision);
 
         return ResponseEntity.ok().build();
     }
