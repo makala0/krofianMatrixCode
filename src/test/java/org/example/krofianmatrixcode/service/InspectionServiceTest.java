@@ -49,4 +49,34 @@ class InspectionServiceTest {
         assertTrue(finalDecision.decision());
         assertFalse(duplicatedFinalDecision.available());
     }
+
+    @Test
+    void queuesFalseInitialDecisionAndTrueFinalDecisionForNokInspection() {
+        InspectionService service = new InspectionService();
+
+        service.addInspection(
+                "ABC123_inner_ST1.jpg",
+                "image/jpeg",
+                new byte[] {1}
+        );
+
+        List<InspectionGroupDto> groups = service.getGroups();
+        UUID groupId = groups.get(0).id();
+
+        assertTrue(service.publishDecision(groupId, "nok"));
+
+        InspectionDecisionDto initialDecision =
+                service.consumeDecision();
+
+        service.deleteGroup(groupId, "nok");
+
+        InspectionDecisionDto finalDecision =
+                service.consumeDecision();
+
+        assertTrue(initialDecision.available());
+        assertFalse(initialDecision.decision());
+
+        assertTrue(finalDecision.available());
+        assertTrue(finalDecision.decision());
+    }
 }

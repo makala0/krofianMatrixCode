@@ -142,7 +142,7 @@ public class InspectionService {
         }
 
         if (publishFinalDecision) {
-            publishDecision(matrixCode, decision);
+            publishDecision(matrixCode, true);
         }
 
         notifyClients();
@@ -171,7 +171,7 @@ public class InspectionService {
 
         publishDecision(
                 group.getMatrixCode(),
-                decision
+                Objects.equals(decision, "ok")
         );
 
         return true;
@@ -212,19 +212,12 @@ public class InspectionService {
         sendEvent("control", decision);
     }
 
-    private void publishDecision(String matrixCode, String decision) {
-        if (decision == null) {
-            return;
-        }
-
-        boolean okDecision =
-                Objects.equals(decision, "ok");
-
+    private void publishDecision(String matrixCode, boolean decision) {
         pendingDecisions.add(
                 new InspectionDecisionDto(
                         true,
                         matrixCode,
-                        okDecision,
+                        decision,
                         LocalDateTime.now()
                 )
         );
