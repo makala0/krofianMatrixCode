@@ -2,13 +2,19 @@ let viewer = OpenSeadragon({
     id: "viewer",
     prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/5.0.1/images/",
 
-    showNavigator: true,
-    navigatorPosition: "BOTTOM_RIGHT",
+    showNavigator: false,
 
     showZoomControl: true,
     showHomeControl: true,
-    showFullPageControl: true,
+    showFullPageControl: false,
     showRotationControl: false,
+
+    gestureSettingsMouse: {
+        clickToZoom: true,
+        dblClickToZoom: true,
+        dragToPan: false,
+        scrollToZoom: true
+    },
 
     animationTime: 0.4,
     blendTime: 0.1,
@@ -32,7 +38,43 @@ const Decision = {
     NOK: "NOK"
 };
 
+const Language = {
+    EN: "en",
+    DE: "de"
+};
+
+const Text = {
+    en: {
+        noImage: "No image",
+        waitingForPart: "Waiting for the next part",
+        scanNextPart: "Scan the next part",
+        lastImage: "LAST IMAGE",
+        markedOk: "Part is marked as OK",
+        markedNok: "Part is marked as NOK",
+        confirmOk: "Press OK again to confirm",
+        confirmNok: "Press NOK again to confirm",
+        confirmationRequired: "confirmation required"
+    },
+    de: {
+        noImage: "Kein Bild",
+        waitingForPart: "Warten auf das naechste Teil",
+        scanNextPart: "Naechstes Teil scannen",
+        lastImage: "LETZTES BILD",
+        markedOk: "Teil ist als OK markiert",
+        markedNok: "Teil ist als NOK markiert",
+        confirmOk: "Zum Bestaetigen erneut OK druecken",
+        confirmNok: "Zum Bestaetigen erneut NOK druecken",
+        confirmationRequired: "Bestaetigung erforderlich"
+    }
+};
+
 let appState = AppState.WAITING;
+let language =
+    localStorage.getItem("language") ?? Language.EN;
+
+if (!Text[language]) {
+    language = Language.EN;
+}
 
 let groups = [];
 
@@ -44,14 +86,12 @@ let currentImageIndex = 0;
 let pendingDecision = null;
 
 let finishing = false;
+let deciding = false;
 
 
 /* ======================================================= */
 /* ELEMENTS                                                */
 /* ======================================================= */
-
-const inspectionList =
-    document.getElementById("inspectionList");
 
 const previousButton =
     document.getElementById("previousButton");
@@ -59,14 +99,71 @@ const previousButton =
 const nextButton =
     document.getElementById("nextButton");
 
-const deleteButton =
-    document.getElementById("deleteButton");
+const englishButton =
+    document.getElementById("englishButton");
+
+const germanButton =
+    document.getElementById("germanButton");
 
 const imageName =
     document.getElementById("imageName");
 
 const viewerElement =
     document.getElementById("viewer");
+
+
+function setDecisionControlsEnabled(enabled) {
+
+    if (previousButton != null) {
+        previousButton.disabled = !enabled;
+    }
+
+    if (nextButton != null) {
+        nextButton.disabled = !enabled;
+    }
+}
+
+
+function t(key) {
+
+    return Text[language][key];
+}
+
+
+function setLanguage(newLanguage) {
+
+    language = newLanguage;
+    localStorage.setItem("language", language);
+    document.documentElement.lang = language;
+
+    englishButton.classList.toggle(
+        "active",
+        language === Language.EN
+    );
+
+    germanButton.classList.toggle(
+        "active",
+        language === Language.DE
+    );
+
+    renderCurrentScreen();
+}
+
+
+function renderCurrentScreen() {
+
+    if (appState === AppState.CONFIRMATION) {
+        showConfirmationScreen(pendingDecision);
+        return;
+    }
+
+    if (appState === AppState.VIEWING) {
+        showImage();
+        return;
+    }
+
+    showWaitingScreen();
+}
 
 
 /* ======================================================= */
@@ -91,6 +188,52 @@ function showStatus(message) {
 function hideStatus() {
 
     statusOverlay.classList.add("hidden");
+}
+
+
+function setInspectionResult(decision) {
+
+    const okResult =
+        decision === Decision.OK;
+
+    viewerElement.classList.toggle(
+        "inspection-ok-viewer",
+        okResult
+    );
+
+    viewerElement.classList.toggle(
+        "inspection-nok-viewer",
+        !okResult
+    );
+
+    imageName.classList.toggle(
+        "inspection-ok-name",
+        okResult
+    );
+
+    imageName.classList.toggle(
+        "inspection-nok-name",
+        !okResult
+    );
+}
+
+
+function clearInspectionResult() {
+
+    viewerElement.classList.remove(
+        "inspection-ok-viewer",
+        "inspection-nok-viewer"
+    );
+
+    imageName.classList.remove(
+        "inspection-ok-name",
+        "inspection-nok-name"
+    );
+
+    statusOverlay.classList.remove(
+        "status-ok",
+        "status-nok"
+    );
 }
 
 
@@ -132,8 +275,6 @@ async function refresh() {
 
             selectedGroup = null;
 
-            renderGroups();
-
             showWaitingScreen();
 
             return;
@@ -154,8 +295,6 @@ async function refresh() {
             newGroup
         );
 
-        renderGroups();
-
     } catch (error) {
 
         console.error(
@@ -163,63 +302,6 @@ async function refresh() {
             error
         );
     }
-}
-
-
-/* ======================================================= */
-/* GROUP LIST                                              */
-/* ======================================================= */
-
-function renderGroups() {
-
-    inspectionList.innerHTML = "";
-
-    groups.forEach(group => {
-
-        const card = document.createElement("div");
-
-        card.className = "card";
-
-        if (
-            selectedGroup != null
-            && selectedGroup.id === group.id
-        ) {
-            card.classList.add("selected");
-        }
-
-        const received =
-            group.receivedAt
-                ? new Date(group.receivedAt).toLocaleString()
-                : "";
-
-        card.innerHTML = `
-            <div class="station">${group.station}</div>
-
-            <div class="matrix">
-                ${group.matrixCode}
-            </div>
-
-            <div class="count">
-                ${group.imageCount} images
-            </div>
-
-            <div class="time">
-                ${received}
-            </div>
-        `;
-
-        card.onclick = async () => {
-
-            await loadGroup(
-                group,
-                true
-            );
-
-            renderGroups();
-        };
-
-        inspectionList.appendChild(card);
-    });
 }
 
 
@@ -318,8 +400,6 @@ async function loadGroup(
         appState = AppState.VIEWING;
     }
 
-    deleteButton.disabled = false;
-
     if (appState === AppState.CONFIRMATION) {
 
         showConfirmationScreen(pendingDecision);
@@ -342,7 +422,7 @@ function showImage() {
         setLastImageWarning(false);
 
         imageName.innerText =
-            "No image";
+            t("noImage");
 
         viewer.close();
 
@@ -350,6 +430,8 @@ function showImage() {
     }
 
     appState = AppState.VIEWING;
+
+    clearInspectionResult();
 
     hideStatus();
 
@@ -361,15 +443,26 @@ function showImage() {
     const image =
         images[currentImageIndex];
 
+    const station =
+        selectedGroup?.station ?? "";
+
+    const location =
+        image.inspectionName;
+
+    const imageTitle =
+        station
+            ? station + " - " + location
+            : location;
+
     imageName.innerText =
-        image.inspectionName
+        imageTitle
         + "   "
         + (currentImageIndex + 1)
         + " / "
         + images.length
         + (
             lastImage
-                ? " - LAST IMAGE"
+                ? " - " + t("lastImage")
                 : ""
         );
 
@@ -378,11 +471,7 @@ function showImage() {
         url: "/image/" + image.id
     });
 
-    previousButton.disabled =
-        false;
-
-    nextButton.disabled =
-        false;
+    setDecisionControlsEnabled(true);
 }
 
 
@@ -400,24 +489,24 @@ function showWaitingScreen() {
 
     pendingDecision = null;
 
+    clearInspectionResult();
+
     viewer.close();
 
     setLastImageWarning(false);
 
     imageName.innerText =
-        "Waiting for the next part";
+        t("waitingForPart");
 
-    previousButton.disabled = true;
-    nextButton.disabled = true;
-    deleteButton.disabled = true;
+    setDecisionControlsEnabled(false);
 
     showStatus(`
         <div class="status-title">
-            Waiting for the next part
+            ${t("waitingForPart")}
         </div>
 
         <div class="status-description">
-            Scan the next NOK part
+            ${t("scanNextPart")}
         </div>
     `);
 }
@@ -435,22 +524,50 @@ function showConfirmationScreen(decision) {
     appState =
         AppState.CONFIRMATION;
 
-    previousButton.disabled = false;
-    nextButton.disabled = false;
+    setDecisionControlsEnabled(true);
 
     setLastImageWarning(false);
+    setInspectionResult(decision);
+
+    const resultText =
+        decision === Decision.OK
+            ? "OK"
+            : "NOK";
+
+    const resultDescription =
+        decision === Decision.OK
+            ? t("markedOk")
+            : t("markedNok");
+
+    const confirmText =
+        decision === Decision.OK
+            ? t("confirmOk")
+            : t("confirmNok");
+
+    statusOverlay.classList.toggle(
+        "status-ok",
+        decision === Decision.OK
+    );
+
+    statusOverlay.classList.toggle(
+        "status-nok",
+        decision === Decision.NOK
+    );
+
+    imageName.innerText =
+        resultText + " - " + t("confirmationRequired");
 
     showStatus(`
         <div class="status-title">
-            Last image
+            ${resultText}
         </div>
 
         <div class="status-description">
-            Do you want to release or reject the part?
+            ${resultDescription}
         </div>
 
         <div class="status-action">
-            OK releases the part, NOK rejects it
+            ${confirmText}
         </div>
     `);
 }
@@ -481,14 +598,23 @@ async function handleControlSignal(decision) {
 
     if (appState === AppState.CONFIRMATION) {
 
-        await finishInspection(decision);
+        await finishInspection(
+            pendingDecision ?? decision
+        );
+
+        return;
+    }
+
+    if (decision === Decision.NOK) {
+
+        await decideInspection(Decision.NOK);
 
         return;
     }
 
     if (isLastInspectionImage()) {
 
-        showConfirmationScreen(null);
+        await decideInspection(Decision.OK);
 
         return;
     }
@@ -517,8 +643,57 @@ async function showNextInspectionImage() {
             nextGroup,
             true
         );
+    }
+}
 
-        renderGroups();
+
+async function decideInspection(decision) {
+
+    if (
+        deciding
+        || finishing
+        || selectedGroup == null
+    ) {
+        return;
+    }
+
+    deciding = true;
+
+    const groupId =
+        selectedGroup.id;
+
+    try {
+
+        const response =
+            await fetch(
+                "/inspection/"
+                    + groupId
+                    + "/decision?decision="
+                    + decision.toLowerCase(),
+                {
+                    method: "POST"
+                }
+            );
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Failed to send inspection decision."
+            );
+        }
+
+        showConfirmationScreen(decision);
+
+    } catch (error) {
+
+        console.error(
+            "Error while sending inspection decision:",
+            error
+        );
+
+    } finally {
+
+        deciding = false;
     }
 }
 
@@ -557,7 +732,7 @@ async function finishInspection(decision) {
         if (!response.ok) {
 
             throw new Error(
-                "Failed to finish NOK."
+                "Failed to finish inspection."
             );
         }
 
@@ -602,68 +777,41 @@ async function finishInspection(decision) {
 /* MOUSE CONTROLS                                          */
 /* ======================================================= */
 
-previousButton.onclick = async () => {
+if (previousButton != null) {
+    previousButton.onclick = async () => {
 
-    if (
-        appState === AppState.WAITING
-    ) {
-        return;
-    }
-
-    await handleControlSignal(Decision.NOK);
-};
-
-
-nextButton.onclick = async () => {
-
-    if (
-        appState === AppState.WAITING
-    ) {
-        return;
-    }
-
-    await handleControlSignal(Decision.OK);
-};
-
-
-/* ======================================================= */
-/* MANUAL DELETE                                           */
-/* ======================================================= */
-
-deleteButton.onclick = async () => {
-
-    if (selectedGroup == null) {
-        return;
-    }
-
-    if (
-        !confirm(
-            "Do you really want to delete this NOK part?"
-        )
-    ) {
-        return;
-    }
-
-    await fetch(
-        "/inspection/" + selectedGroup.id,
-        {
-            method: "DELETE"
+        if (
+            appState === AppState.WAITING
+        ) {
+            return;
         }
-    );
 
-    selectedGroup = null;
+        await handleControlSignal(Decision.NOK);
+    };
+}
 
-    groups = [];
 
-    images = [];
+if (nextButton != null) {
+    nextButton.onclick = async () => {
 
-    currentImageIndex = 0;
+        if (
+            appState === AppState.WAITING
+        ) {
+            return;
+        }
 
-    pendingDecision = null;
+        await handleControlSignal(Decision.OK);
+    };
+}
 
-    showWaitingScreen();
 
-    refresh();
+englishButton.onclick = () => {
+    setLanguage(Language.EN);
+};
+
+
+germanButton.onclick = () => {
+    setLanguage(Language.DE);
 };
 
 
@@ -747,4 +895,5 @@ eventSource.addEventListener(
 
 /* ======================================================= */
 
+setLanguage(language);
 refresh();

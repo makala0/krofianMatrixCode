@@ -10,9 +10,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Service
 public class InspectionService {
@@ -23,8 +23,14 @@ public class InspectionService {
 
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
-    private final AtomicReference<InspectionDecisionDto> pendingDecision =
-            new AtomicReference<>();
+    private final Queue<InspectionDecisionDto> pendingDecisions =
+            new ConcurrentLinkedQueue<>();
+
+    private final Set<UUID> initialDecisionGroups =
+            ConcurrentHashMap.newKeySet();
+
+    private final Set<UUID> finalDecisionGroups =
+            ConcurrentHashMap.newKeySet();
 
     private String currentMatrixCode = null;
 
@@ -41,6 +47,8 @@ public class InspectionService {
         if (currentMatrixCode == null || !currentMatrixCode.equals(matrixCode)) {
             groups.clear();
             groupIndex.clear();
+            initialDecisionGroups.clear();
+            finalDecisionGroups.clear();
             currentMatrixCode = matrixCode;
         }
 
@@ -111,6 +119,9 @@ public class InspectionService {
             return;
 
         String matrixCode = group.getMatrixCode();
+        boolean publishFinalDecision =
+                decision != null
+                        && finalDecisionGroups.add(id);
 
         List<InspectionGroup> groupsToDelete = groups.values()
                 .stream()
@@ -119,6 +130,7 @@ public class InspectionService {
 
         for (InspectionGroup item : groupsToDelete) {
             groups.remove(item.getId());
+            initialDecisionGroups.remove(item.getId());
 
             String key = item.getStation() + "|" + item.getMatrixCode();
 
@@ -129,38 +141,40 @@ public class InspectionService {
             currentMatrixCode = null;
         }
 
-        if (decision != null) {
-            boolean okDecision =
-                    Objects.equals(decision, "ok");
-
-            pendingDecision.set(
-                    new InspectionDecisionDto(
-                            true,
-                            matrixCode,
-                            okDecision,
-                            LocalDateTime.now()
-                    )
-            );
-
-            System.out.println(
-                    "Inspection finished: "
-                            + matrixCode
-                            + ", decision: "
-                            + decision
-            );
+        if (publishFinalDecision) {
+            publishDecision(matrixCode, decision);
         }
 
         notifyClients();
     }
 
     public InspectionDecisionDto consumeDecision() {
-        InspectionDecisionDto decision = pendingDecision.getAndSet(null);
+        InspectionDecisionDto decision = pendingDecisions.poll();
 
         if (decision == null) {
             return InspectionDecisionDto.empty();
         }
 
         return decision;
+    }
+
+    public boolean publishDecision(UUID groupId, String decision) {
+        InspectionGroup group = groups.get(groupId);
+
+        if (group == null) {
+            return false;
+        }
+
+        if (!initialDecisionGroups.add(groupId)) {
+            return true;
+        }
+
+        publishDecision(
+                group.getMatrixCode(),
+                decision
+        );
+
+        return true;
     }
 
     public InspectionImage findImage(UUID imageId) {
@@ -196,6 +210,31 @@ public class InspectionService {
 
     public void control(String decision) {
         sendEvent("control", decision);
+    }
+
+    private void publishDecision(String matrixCode, String decision) {
+        if (decision == null) {
+            return;
+        }
+
+        boolean okDecision =
+                Objects.equals(decision, "ok");
+
+        pendingDecisions.add(
+                new InspectionDecisionDto(
+                        true,
+                        matrixCode,
+                        okDecision,
+                        LocalDateTime.now()
+                )
+        );
+
+        System.out.println(
+                "Inspection decision: "
+                        + matrixCode
+                        + ", decision: "
+                        + decision
+        );
     }
 
     private void sendEvent(String eventName, String data) {

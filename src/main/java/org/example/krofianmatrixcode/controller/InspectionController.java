@@ -77,6 +77,30 @@ public class InspectionController {
         return inspectionService.consumeDecision();
     }
 
+    @PostMapping("/inspection/{groupId}/decision")
+    public ResponseEntity<Void> decision(
+            @PathVariable UUID groupId,
+            @RequestParam String decision) {
+
+        String normalizedDecision = decision.toLowerCase();
+
+        if (!normalizedDecision.equals("ok") && !normalizedDecision.equals("nok")) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        boolean published =
+                inspectionService.publishDecision(
+                        groupId,
+                        normalizedDecision
+                );
+
+        if (!published) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/control/next")
     public ResponseEntity<Void> nextImage() {
 
