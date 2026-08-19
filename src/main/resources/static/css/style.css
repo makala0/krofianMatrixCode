@@ -57,7 +57,7 @@ header h1 {
     overflow-y: auto;
 }
 
-/* ---------- Karta ---------- */
+/* ---------- Card ---------- */
 
 .card {
     padding: 18px;
@@ -102,7 +102,7 @@ header h1 {
     color: gray;
 }
 
-/* ---------- Pravá část ---------- */
+/* ---------- Right section ---------- */
 
 .content {
     flex: 1;
@@ -117,6 +117,11 @@ header h1 {
     background: #111;
 }
 
+#viewer.last-image-viewer {
+    outline: 8px solid #f59e0b;
+    outline-offset: -8px;
+}
+
 /* ---------- Toolbar ---------- */
 
 .toolbar {
@@ -129,13 +134,23 @@ header h1 {
     gap: 20px;
 }
 
-/* ---------- Název kontroly ---------- */
+/* ---------- Inspection name ---------- */
 
 #imageName {
     min-width: 280px;
     text-align: center;
     font-size: 20px;
     font-weight: bold;
+}
+
+#imageName.last-image-name {
+    min-width: 360px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    background: #fef3c7;
+    color: #92400e;
+    border: 2px solid #f59e0b;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2);
 }
 
 /* ---------- Buttons ---------- */

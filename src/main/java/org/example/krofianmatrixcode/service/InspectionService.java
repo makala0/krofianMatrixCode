@@ -238,7 +238,7 @@ public class InspectionService {
         String[] parts = name.split("_");
         if (parts.length < 3) {
             throw new IllegalArgumentException(
-                    "Neplatný název souboru: " + fileName);
+                    "Invalid file name: " + fileName);
         }
 
         String matrixCode = parts[0];

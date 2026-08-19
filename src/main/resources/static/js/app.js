@@ -80,7 +80,6 @@ statusOverlay.className = "viewer-status hidden";
 
 viewerElement.appendChild(statusOverlay);
 
-
 function showStatus(message) {
 
     statusOverlay.innerHTML = message;
@@ -95,6 +94,20 @@ function hideStatus() {
 }
 
 
+function setLastImageWarning(visible) {
+
+    viewerElement.classList.toggle(
+        "last-image-viewer",
+        visible
+    );
+
+    imageName.classList.toggle(
+        "last-image-name",
+        visible
+    );
+}
+
+
 /* ======================================================= */
 /* REFRESH                                                 */
 /* ======================================================= */
@@ -106,14 +119,14 @@ async function refresh() {
         const response = await fetch("/inspections");
 
         if (!response.ok) {
-            console.error("Nepodařilo se načíst inspections.");
+            console.error("Failed to load inspections.");
             return;
         }
 
         groups = await response.json();
 
         /*
-         * Backend vrací skupiny od nejnovější.
+         * Backend returns groups from newest to oldest.
          */
         if (groups.length === 0) {
 
@@ -129,8 +142,8 @@ async function refresh() {
         const newestGroup = groups[0];
 
         /*
-         * Pokud přišel nový NOK,
-         * automaticky ho otevřeme.
+         * If a new NOK arrives,
+         * open it automatically.
          */
         const newGroup =
             selectedGroup == null
@@ -146,7 +159,7 @@ async function refresh() {
     } catch (error) {
 
         console.error(
-            "Chyba při načítání inspections:",
+            "Error while loading inspections:",
             error
         );
     }
@@ -187,7 +200,7 @@ function renderGroups() {
             </div>
 
             <div class="count">
-                ${group.imageCount} snímků
+                ${group.imageCount} images
             </div>
 
             <div class="time">
@@ -268,7 +281,7 @@ async function loadGroup(
     images = newImages;
 
     /*
-     * Nový NOK
+     * New NOK
      */
     if (resetIndex) {
 
@@ -280,9 +293,9 @@ async function loadGroup(
     }
 
     /*
-     * Pokud během zobrazování přišly
-     * další fotografie stejného NOK,
-     * zachováme aktuální index.
+     * If more photos of the same NOK arrive
+     * while it is being viewed,
+     * keep the current index.
      */
     if (
         currentImageIndex
@@ -293,9 +306,9 @@ async function loadGroup(
     }
 
     /*
-     * Mohli jsme si myslet, že jsme
-     * na posledním snímku, ale Zebra
-     * mezitím poslala další.
+     * We may have thought we were
+     * on the last image, but Zebra
+     * sent another one in the meantime.
      */
     if (
         appState === AppState.CONFIRMATION
@@ -326,8 +339,10 @@ function showImage() {
 
     if (images.length === 0) {
 
+        setLastImageWarning(false);
+
         imageName.innerText =
-            "Žádný snímek";
+            "No image";
 
         viewer.close();
 
@@ -337,6 +352,11 @@ function showImage() {
     appState = AppState.VIEWING;
 
     hideStatus();
+
+    const lastImage =
+        isLastInspectionImage();
+
+    setLastImageWarning(lastImage);
 
     const image =
         images[currentImageIndex];
@@ -348,8 +368,8 @@ function showImage() {
         + " / "
         + images.length
         + (
-            isLastInspectionImage()
-                ? " - POSLEDNI SNIMEK"
+            lastImage
+                ? " - LAST IMAGE"
                 : ""
         );
 
@@ -382,8 +402,10 @@ function showWaitingScreen() {
 
     viewer.close();
 
+    setLastImageWarning(false);
+
     imageName.innerText =
-        "Čeká se na další díl";
+        "Waiting for the next part";
 
     previousButton.disabled = true;
     nextButton.disabled = true;
@@ -391,11 +413,11 @@ function showWaitingScreen() {
 
     showStatus(`
         <div class="status-title">
-            Čeká se na další díl
+            Waiting for the next part
         </div>
 
         <div class="status-description">
-            Naskenujte další NOK kus
+            Scan the next NOK part
         </div>
     `);
 }
@@ -416,17 +438,19 @@ function showConfirmationScreen(decision) {
     previousButton.disabled = false;
     nextButton.disabled = false;
 
+    setLastImageWarning(false);
+
     showStatus(`
         <div class="status-title">
-            Poslední snímek
+            Last image
         </div>
 
         <div class="status-description">
-            Chcete díl pustit, nebo vyhodit?
+            Do you want to release or reject the part?
         </div>
 
         <div class="status-action">
-            OK pusti díl, NOK díl vyhodí
+            OK releases the part, NOK rejects it
         </div>
     `);
 }
@@ -533,7 +557,7 @@ async function finishInspection(decision) {
         if (!response.ok) {
 
             throw new Error(
-                "NOK se nepodařilo dokončit."
+                "Failed to finish NOK."
             );
         }
 
@@ -554,13 +578,13 @@ async function finishInspection(decision) {
     } catch (error) {
 
         console.error(
-            "Chyba při dokončení NOK:",
+            "Error while finishing NOK:",
             error
         );
 
         /*
-         * Pokud DELETE selže,
-         * zůstaneme na potvrzení.
+         * If DELETE fails,
+         * stay on the confirmation screen.
          */
         appState =
             AppState.CONFIRMATION;
@@ -614,7 +638,7 @@ deleteButton.onclick = async () => {
 
     if (
         !confirm(
-            "Opravdu chcete odstranit tento NOK kus?"
+            "Do you really want to delete this NOK part?"
         )
     ) {
         return;
@@ -669,7 +693,7 @@ eventSource.onerror = (event) => {
 
 
 /*
- * Nové fotografie / nový NOK
+ * New photos / new NOK
  */
 eventSource.addEventListener(
     "inspection",
@@ -686,7 +710,7 @@ eventSource.addEventListener(
 
 
 /*
- * Signál fyzického tlačítka
+ * Physical button signal
  */
 eventSource.addEventListener(
     "next-image",
